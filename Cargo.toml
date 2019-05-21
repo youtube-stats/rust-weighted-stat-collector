@@ -1,5 +1,5 @@
 [package]
-name = "rust-sequential-stat-collector"
+name = "rust-weighted-stat-collector"
 version = "0.1.0"
 authors = ["Salvador Guzman <guzmansalv@gmail.com>"]
 edition = "2018"
