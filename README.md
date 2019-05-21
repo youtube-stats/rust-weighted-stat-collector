@@ -1,2 +1,2 @@
-# rust-sequential-stat-collector
-Iterate through channels and insert stats
+# rust-weighted-stat-collector
+Collect stats based off of past performance
