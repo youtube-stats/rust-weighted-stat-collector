@@ -78,8 +78,6 @@ fn main() {
         postgres::Connection::connect(params, tls).unwrap();
 
     let key: String = std::env::var("YOUTUBE_KEY").unwrap();
-    let mut offset: u32 = 0;
-
 
     let query: &str = "select
        a.channel_id,
