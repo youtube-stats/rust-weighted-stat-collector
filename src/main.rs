@@ -4,9 +4,7 @@ extern crate reqwest;
 extern crate serde_json;
 extern crate serde;
 
-use std::collections::HashMap;
-use std::ops::Range;
-use rand::seq::IteratorRandom;
+use rand::distributions::Distribution;
 
 const POSTGRESQL_URL: &'static str = "postgresql://admin@localhost:5432/youtube";
 
@@ -67,6 +65,11 @@ struct YoutubeResponseType {
     items: Vec<ItemType>
 }
 
+struct Channel {
+    id: i32,
+    serial: String
+}
+
 fn main() {
     let params: &'static str = POSTGRESQL_URL;
     let tls: postgres::TlsMode = postgres::TlsMode::None;
@@ -79,17 +82,23 @@ fn main() {
 
 
     let query: &str = "select
-   a.channel_id,
-   c.serial,
-   ((a.subs - b.lasty)) diff
-        from youtube.stats.metrics a
-    inner join
-        (SELECT
+       a.channel_id,
+       c.serial,
+       (a.lasty - b.subs) diff
+    from
+         (SELECT
            channel_id,
            last(subs::bigint, time) lasty
         FROM youtube.stats.metrics
     where now() - interval '10 minutes' > time
-        GROUP BY channel_id) b
+        GROUP BY channel_id
+    order by lasty desc) a
+    inner join
+             (SELECT
+           channel_id,
+           last(subs::bigint, time) subs
+      FROM youtube.stats.metrics
+      GROUP BY channel_id) b
     on a.channel_id = b.channel_id
     inner join youtube.stats.channels c
     on a.channel_id = c.id
@@ -98,48 +107,53 @@ fn main() {
     loop {
         let rows: postgres::rows::Rows = conn.query(query, &[]).unwrap();
 
-        let mut hash: std::collections::HashMap<String, u32> = HashMap::new();
+        let mut hash: std::collections::HashMap<String, i32> =
+            std::collections::HashMap::new();
 
-        let mut channels: Vec<String> = Vec::new();
-        let mut weights: Vec<u32> = Vec::new();
+        let mut channels: Vec<Channel> = Vec::new();
+        let mut weights: Vec<i64> = Vec::new();
 
         for row in &rows {
-            let channel_id: u32 = row.get(0);
+            let channel_id: i32 = row.get(0);
             let channel_serial: String = row.get(1);
-            let diff: u32 = row.get(2);
+            let diff: i64 = row.get(2);
 
-            hash.insert(channel_serial, channel_id);
+            hash.insert(channel_serial.clone(), channel_id);
 
-            channels.push(channel_serial);
+            channels.push(Channel {
+                id: channel_id,
+                serial: channel_serial
+            });
             weights.push(diff);
         }
 
-        println!("Retrieved {} channels", weighted_channels.len());
+        println!("Retrieved {} channels", weights.len());
 
-        {
-            let min: u32 = weights.last().diff;
-            let range: Range<usize> = 0..(weights.len());
+        let min: i64 = weights.last().unwrap().clone();
+        let range: std::ops::Range<usize> = 0..(weights.len());
 
-            println!("Min is {} - Adding to all members", min);
+        println!("Min is {} - Adding to all members", min);
 
-            for i in range {
-                weighteds[i].diff += (min + 1);
-            }
+        for i in range {
+            weights[i] += 1 - min;
         }
 
         let dist =
             rand::distributions::WeightedIndex::new(&weights).unwrap();
-        let mut rng = rand::prelude::thread_rng();
+        let mut rng: rand::prelude::ThreadRng = rand::prelude::thread_rng();
 
-        for i in 1..10000 {
+        for _i in 1..10000 {
             let mut vec_id: Vec<String> = Vec::new();
-            for i in 0..50 {
-                let random: String = dist.choose(&mut rng);
-                vec.id.push(random);
+            for _i in 0..50 {
+                let random: usize = dist.sample(&mut rng);
+                let value: &String = &channels[random].serial;
+                vec_id.push(value.clone());
             }
 
             let ids: String = vec_id.join(",");
-            let url: String = format!("https://www.googleapis.com/youtube/v3/channels?part=statistics&key={}&id={}", key, ids);
+            let url: String =
+                format!("https://www.googleapis.com/youtube/v3/channels?part=statistics&key={}&id={}",
+                        key, ids);
 
             let mut resp: reqwest::Response = match reqwest::get(url.as_str()) {
                 Ok(resp) => resp,
