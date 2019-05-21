@@ -101,8 +101,7 @@ fn main() {
       GROUP BY channel_id) b
     on a.channel_id = b.channel_id
     inner join youtube.stats.channels c
-    on a.channel_id = c.id
-    order by diff desc";
+    on a.channel_id = c.id";
 
     loop {
         let rows: postgres::rows::Rows = conn.query(query, &[]).unwrap();
@@ -111,7 +110,7 @@ fn main() {
             std::collections::HashMap::new();
 
         let mut channels: Vec<Channel> = Vec::new();
-        let mut weights: Vec<i64> = Vec::new();
+        let mut weights: Vec<u64> = Vec::new();
 
         for row in &rows {
             let channel_id: i32 = row.get(0);
@@ -124,19 +123,23 @@ fn main() {
                 id: channel_id,
                 serial: channel_serial
             });
-            weights.push(diff);
+
+            let value: u64 = i64::abs(diff) as u64;
+            weights.push(value);
         }
 
         println!("Retrieved {} channels", weights.len());
 
-        let min: i64 = weights.last().unwrap().clone();
-        let range: std::ops::Range<usize> = 0..(weights.len());
+        if weights.iter().cloned().fold(0, u64::min) == 0 {
+            let range: std::ops::Range<usize> = 0..(weights.len());
 
-        println!("Min is {} - Adding to all members", min);
+            println!("Min is 0 - Adding 1 to all members");
 
-        for i in range {
-            weights[i] += 1 - min;
+            for i in range {
+                weights[i] += 1;
+            }
         }
+
 
         let dist =
             rand::distributions::WeightedIndex::new(&weights).unwrap();
@@ -177,7 +180,7 @@ fn main() {
                     eprintln!("{}", e.to_string());
                     continue
                 }
-            };
+            }
 
             for item in response.items {
                 let channel_id: String = match hash.get(item.id.as_str()) {
