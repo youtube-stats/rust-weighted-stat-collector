@@ -180,7 +180,7 @@ fn main() {
                     eprintln!("{}", e.to_string());
                     continue
                 }
-            }
+            };
 
             for item in response.items {
                 let channel_id: String = match hash.get(item.id.as_str()) {
