@@ -5,7 +5,7 @@ extern crate serde_json;
 extern crate serde;
 
 use rand::distributions::Distribution;
-use rand::prelude::IteratorRandom;
+use rand::seq::SliceRandom;
 
 const POSTGRESQL_URL: &'static str = "postgresql://admin@localhost:5432/youtube";
 
